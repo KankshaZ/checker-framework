@@ -1,20 +1,18 @@
 package org.checkerframework.checker.deadlock;
 
-import org.checkerframework.checker.deadlock.qual.Acquires;
+import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfter;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfterUnknown;
-
-import javax.lang.model.element.AnnotationMirror;
-import org.checkerframework.javacutil.AnnotationBuilder;
+import org.checkerframework.checker.deadlock.qual.Acquires;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.javacutil.AnnotationBuilder;
 
 public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
-	private final AnnotationMirror ACQUIRES; 
-	private final AnnotationMirror ACQUIRED_AFTER; 
-	private final AnnotationMirror ACQUIRED_AFTER_UNKNOWN;
-
+    private final AnnotationMirror ACQUIRES;
+    private final AnnotationMirror ACQUIRED_AFTER;
+    private final AnnotationMirror ACQUIRED_AFTER_UNKNOWN;
 
     public DeadlockAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker, true);
@@ -24,5 +22,4 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
         postInit();
     }
-
 }
