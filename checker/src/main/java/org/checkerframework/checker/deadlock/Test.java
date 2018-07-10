@@ -4,51 +4,110 @@ import org.checkerframework.checker.deadlock.qual.*;
 
 public class Test {
 
-    @Acquires("myLock")
+    @Acquires({"MyClass.myLock", "MyClass.myLock2"})
     void myMethod1(Object a) {
         synchronized (MyClass.myLock) {
             a.toString();
         }
     }
 
-    @Acquires({"myLock", "myLock2"})
+    @Acquires({"MyClass.myLock2", "MyClass.myLock3"})
     void myMethod2(Object b) {
         synchronized (MyClass.myLock2) {
-            myMethod1(b);
+            synchronized (MyClass.myLock3) {
+                myMethod1(b);
+            }
         }
+    }
+
+    @Acquires({"MyClass.myLock", "MyClass.myLock2", "MyClass.myLock3"})
+    void myMethod3(Object b) {
+        synchronized (MyClass.myLock2) {
+            synchronized (MyClass.myLock3) {
+                myMethod1(b);
+                b.toString();
+                myMethod1(b);
+            }
+        }
+        synchronized (MyClass.myLock2) {
+            b.toString();
+        }
+    }
+
+    @Acquires("this")
+    void myMethod3(SynchronizedCounter sc) {
+        sc.increment();
     }
 }
 
 class MyClass {
     public static @AcquiredAfterUnknown Object myLock = new Object();
     public static Object myLock2 = new Object();
+    public static Object myLock3 = new Object();
 }
 
-/*COMMAND: javacheck -processor deadlock Test.java
-OUTPUT:
-reached method: Test()
-METHOD INVOCATION:  Object()
-annotation on method: null
-reached method: myMethod1(java.lang.Object)
-ANNOTATION FOUND: [@org.checkerframework.checker.deadlock.qual.Acquires({"myLock"})]
-VARIABLE DECLARATION: java.lang.Object
-annotated type: @AcquiredAfterUnknown Object
-LOCK ACQUIRED BY SYNC_STATEMENT: (MyClass.myLock)
-METHOD INVOCATION:  toString()
-annotation on method: null
-reached method: myMethod2(java.lang.Object)
-ANNOTATION FOUND: [@org.checkerframework.checker.deadlock.qual.Acquires({"myLock", "myLock2"})]
-VARIABLE DECLARATION: java.lang.Object
-annotated type: @AcquiredAfterUnknown Object
-LOCK ACQUIRED BY SYNC_STATEMENT: (MyClass.myLock2)
-METHOD INVOCATION:  myMethod1(java.lang.Object)
-annotation on method: @org.checkerframework.checker.deadlock.qual.Acquires({"myLock"})
-reached method: MyClass()
-METHOD INVOCATION:  Object()
-annotation on method: null
-VARIABLE DECLARATION: (@org.checkerframework.checker.deadlock.qual.AcquiredAfterUnknown :: java.lang.Object)
-annotated type: @AcquiredAfterUnknown Object
-ANNOTATION FOUND: [@org.checkerframework.checker.deadlock.qual.AcquiredAfterUnknown]
-VARIABLE DECLARATION: java.lang.Object
-annotated type: @AcquiredAfterUnknown Object
-*/
+class SynchronizedCounter {
+    private int c = 0;
+
+    @Acquires("this")
+    public synchronized void increment() {
+        c++;
+    }
+}
+
+// OUTPUT:
+// checker/src/main/java/org/checkerframework/checker/deadlock/Test.java:8: error: [all.mentioned.locks.not.acquired] (all.mentioned.locks.not.acquired)
+//     void myMethod1(Object a) {
+//          ^
+// checker/src/main/java/org/checkerframework/checker/deadlock/Test.java:18: error: [method.invocation.lock.not.mentioned:MyClass.myLock] (method.invocation.lock.not.mentioned:MyClass.myLock)
+//                 myMethod1(b);
+//                          ^
+// 2 errors
+// Previously held locks []
+// Method will acquire []
+// Previously held locks []
+// Previously held locks []
+// Method will acquire [MyClass.myLock, MyClass.myLock2]
+// Previously held locks []
+// Currently held locks [MyClass.myLock]
+// Previously held locks [MyClass.myLock]
+// Previously held locks []
+// Method will acquire [MyClass.myLock2, MyClass.myLock3]
+// Previously held locks []
+// Currently held locks [MyClass.myLock2]
+// Previously held locks [MyClass.myLock2]
+// Currently held locks [MyClass.myLock2, MyClass.myLock3]
+// Previously held locks [MyClass.myLock2, MyClass.myLock3]
+// Method call will acquire locks [MyClass.myLock, MyClass.myLock2]
+// lock release occurs immediately after the method call.
+// Previously held locks []
+// Method will acquire [MyClass.myLock, MyClass.myLock2, MyClass.myLock3]
+// Previously held locks []
+// Currently held locks [MyClass.myLock2]
+// Previously held locks [MyClass.myLock2]
+// Currently held locks [MyClass.myLock2, MyClass.myLock3]
+// Previously held locks [MyClass.myLock2, MyClass.myLock3]
+// Method call will acquire locks [MyClass.myLock, MyClass.myLock2]
+// lock release occurs immediately after the method call.
+// Previously held locks [MyClass.myLock2, MyClass.myLock3]
+// Previously held locks [MyClass.myLock2, MyClass.myLock3]
+// Method call will acquire locks [MyClass.myLock, MyClass.myLock2]
+// lock release occurs immediately after the method call.
+// Previously held locks []
+// Currently held locks [MyClass.myLock2]
+// Previously held locks [MyClass.myLock2]
+// Previously held locks []
+// Method will acquire [this]
+// Previously held locks []
+// Synchronized method. Currently held locks []
+// Method call will acquire locks [this]
+// lock release occurs immediately after the method call.
+// Previously held locks []
+// Method will acquire []
+// Previously held locks []
+// Previously held locks []
+// Method will acquire [this]
+// Synchronized method. Currently held locks [this]
+// Previously held locks []
+// Method will acquire []
+// Previously held locks []

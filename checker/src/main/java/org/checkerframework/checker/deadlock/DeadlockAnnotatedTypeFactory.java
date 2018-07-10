@@ -1,5 +1,8 @@
 package org.checkerframework.checker.deadlock;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfter;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfterUnknown;
@@ -10,6 +13,7 @@ import org.checkerframework.javacutil.AnnotationBuilder;
 
 public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
+    private List<String> heldLocks = new ArrayList<String>();
     private final AnnotationMirror ACQUIRES;
     private final AnnotationMirror ACQUIRED_AFTER;
     private final AnnotationMirror ACQUIRED_AFTER_UNKNOWN;
@@ -21,5 +25,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         ACQUIRED_AFTER_UNKNOWN = AnnotationBuilder.fromClass(elements, AcquiredAfterUnknown.class);
 
         postInit();
+    }
+
+    public void setHeldLocks(List<String> heldLocks) {
+        this.heldLocks = heldLocks;
+    }
+
+    public List<String> getHeldLock() {
+        return Collections.unmodifiableList(heldLocks);
     }
 }
