@@ -11,19 +11,15 @@ import java.util.Collections;
 import java.util.List;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
+import org.checkerframework.checker.deadlock.DeadlockAnnotatedTypeFactory.*;
 import org.checkerframework.checker.deadlock.qual.Acquires;
-import org.checkerframework.checker.deadlock.qual.AcquiredAfter;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.source.Result;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
-import java.util.Arrays;
-import org.checkerframework.checker.deadlock.DeadlockAnnotatedTypeFactory.*;
 
 /**
  * The DeadlockVisitor enforces the special type-checking rules described in the Deadlock Checker
@@ -48,17 +44,18 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         TypeMirror tm = TreeUtils.typeOf(node);
         String lockToBeAdded = node.getName().toString();
         List<? extends AnnotationTree> annotationTreeList = node.getModifiers().getAnnotations();
-        if(node.getModifiers().getAnnotations().isEmpty()) {
+        if (node.getModifiers().getAnnotations().isEmpty()) {
             listOfLockGroups = atypeFactory.defineAcquisitionOrder(lockToBeAdded);
         }
-        for(AnnotationTree annotation: annotationTreeList) {
-            if(annotation.getAnnotationType().toString().equals("AcquiredAfter")) {
-                for(ExpressionTree argument: annotation.getArguments()) {
+        for (AnnotationTree annotation : annotationTreeList) {
+            if (annotation.getAnnotationType().toString().equals("AcquiredAfter")) {
+                for (ExpressionTree argument : annotation.getArguments()) {
                     String arg = argument.toString();
-                    if(arg.contains("value")) {
-                        String value = arg.substring(arg.indexOf("=")+2, arg.length());
+                    if (arg.contains("value")) {
+                        String value = arg.substring(arg.indexOf("=") + 2, arg.length());
                         ArrayList<String> acquiredAfter = getValueArray(value);
-                        listOfLockGroups = atypeFactory.defineAcquisitionOrder(acquiredAfter, lockToBeAdded);
+                        listOfLockGroups =
+                                atypeFactory.defineAcquisitionOrder(acquiredAfter, lockToBeAdded);
                     }
                 }
             }
@@ -143,18 +140,18 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
             // System.out.println("Synchronized method. Currently held locks " + locks);
         }
 
-        List<String> methodLocks = methodAcquires(method); //locks that method call will acquire
+        List<String> methodLocks = methodAcquires(method); // locks that method call will acquire
 
         // check if any currently-held lock is not in append lock's predecessor
-        if(listOfLockGroups!=null && !listOfLockGroups.isEmpty())
-        {
-            for(LockGroup lockGroup: listOfLockGroups) {
-                for (String appendLock: methodLocks) {
+        if (listOfLockGroups != null && !listOfLockGroups.isEmpty()) {
+            for (LockGroup lockGroup : listOfLockGroups) {
+                for (String appendLock : methodLocks) {
                     if (lockGroup.locks.contains(appendLock)) {
-                        if(!checkAncestors(prevLocks, lockGroup, appendLock)) {
-                            checker.report( Result.failure(
-                                    "incomplete.ordering.between.modules:"
-                                            + appendLock), node);
+                        if (!checkAncestors(prevLocks, lockGroup, appendLock)) {
+                            checker.report(
+                                    Result.failure(
+                                            "incomplete.ordering.between.modules:" + appendLock),
+                                    node);
                         }
                     }
                 }
@@ -193,26 +190,26 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                 checker.report(
                         Result.failure(
                                 "synchronizedExpression in method acquires lock not mentioned: "
-                                        + appendLock), node);
+                                        + appendLock),
+                        node);
             }
 
-            for(LockGroup lockGroup: listOfLockGroups) {
+            for (LockGroup lockGroup : listOfLockGroups) {
                 if (lockGroup.locks.contains(appendLock)) {
-                    if(checkAncestors(prevLocks, lockGroup, appendLock)) {
+                    if (checkAncestors(prevLocks, lockGroup, appendLock)) {
                         List<String> locks = append(prevLocks, appendLock);
                         atypeFactory.setHeldLocks(locks);
                         // System.out.println("Currently held locks " + locks);
-                    }
-                    else {
+                    } else {
                         checker.report(
-                            Result.failure(
-                                    "incomplete.definition.or.inconsistent.with.defined.order"
-                                            + appendLock), node);
+                                Result.failure(
+                                        "incomplete.definition.or.inconsistent.with.defined.order"
+                                                + appendLock),
+                                node);
                     }
                 }
             }
 
-            
             return super.visitSynchronized(node, p);
         } finally {
             atypeFactory.setHeldLocks(prevLocks);
@@ -246,16 +243,16 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         ArrayList<String> acquiredAfter = new ArrayList<String>();
         if (value.contains(",")) {
             value = value.replaceAll("\"", "");
-            value = value.substring(1, value.length()-1);
+            value = value.substring(1, value.length() - 1);
             String[] list = value.split("\\s*,\\s*");
             // System.out.println(list);
             ArrayList<String> aList = new ArrayList<String>();
-            for(String val: list) {
+            for (String val : list) {
                 aList.add(val);
             }
             return aList;
         } else {
-            acquiredAfter.add(value.substring(1, value.length()-1));
+            acquiredAfter.add(value.substring(1, value.length() - 1));
             return acquiredAfter;
         }
     }
@@ -270,22 +267,22 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
     }
 
     // checks if any currently-held lock is not in lockToBeAdded's predecessors
-    public static Boolean checkAncestors(List<String> prevLocks, LockGroup lockGroup, String lockToBeAdded) {
+    public static Boolean checkAncestors(
+            List<String> prevLocks, LockGroup lockGroup, String lockToBeAdded) {
         ArrayList<String> locks = lockGroup.locks;
-        int [][] order = lockGroup.order;
+        int[][] order = lockGroup.order;
         int index = locks.indexOf(lockToBeAdded);
-        for (String lock: prevLocks) {
-            if(locks.contains(lock)) {
-                if(order[locks.indexOf(lock)][index]!=1) {
+        for (String lock : prevLocks) {
+            if (locks.contains(lock)) {
+                if (order[locks.indexOf(lock)][index] != 1) {
                     return false;
                 }
-            }
-            else {
+            } else {
                 return false;
             }
         }
         return true;
-    }    
+    }
 
     // checks if lock is present in @Acquires annotation
     // Adds to methodAcquiredLocks list if present. That list keeps track of acquired locks
@@ -305,5 +302,4 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         }
         return false;
     }
-
 }

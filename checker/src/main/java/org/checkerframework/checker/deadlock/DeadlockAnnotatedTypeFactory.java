@@ -3,20 +3,18 @@ package org.checkerframework.checker.deadlock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Arrays;
 import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfter;
 import org.checkerframework.checker.deadlock.qual.AcquiredAfterUnknown;
 import org.checkerframework.checker.deadlock.qual.Acquires;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.javacutil.AnnotationBuilder;
-import org.checkerframework.framework.source.Result;
-import org.checkerframework.framework.util.MultiGraphQualifierHierarchy;
-import org.checkerframework.framework.util.GraphQualifierHierarchy;
-import org.checkerframework.framework.type.QualifierHierarchy;
-import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.framework.qual.Unqualified;
+import org.checkerframework.framework.type.QualifierHierarchy;
+import org.checkerframework.framework.util.GraphQualifierHierarchy;
+import org.checkerframework.framework.util.MultiGraphQualifierHierarchy;
+import org.checkerframework.javacutil.AnnotationBuilder;
+import org.checkerframework.javacutil.AnnotationUtils;
 
 public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
@@ -44,80 +42,47 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         return Collections.unmodifiableList(heldLocks);
     }
 
-    public static void addRelationship(ArrayList<String> ancestors, String lockToBeAdded, LockGroup lockGroup) {
+    public static void addRelationship(
+            ArrayList<String> ancestors, String lockToBeAdded, LockGroup lockGroup) {
         ArrayList<String> nameList = lockGroup.locks;
-        // System.out.println("newNameList" + nameList);
-        int [][] order = lockGroup.order;
-        // for(int i=0; i<nameList.size(); i++) {
-        //     for(int j=0; j<nameList.size(); j++) {
-        //         System.out.println(order[i][j]);
-        //     }
-        // }
+        int[][] order = lockGroup.order;
         if (nameList.contains(lockToBeAdded)) {
-            int index =  nameList.indexOf(lockToBeAdded);
+            int index = nameList.indexOf(lockToBeAdded);
             order[index][index] = 1; // this node just got created
-            for(String lock: nameList) {
+            for (String lock : nameList) {
                 if (ancestors.contains(lock)) {
-                    order[ancestors.indexOf(lock)][index] = 1; // node at index can be reached by ancestor
+                    order[ancestors.indexOf(lock)][index] =
+                            1; // node at index can be reached by ancestor
                     if (order[index][ancestors.indexOf(lock)] == 1) {
                         System.out.println("CYCLE.");
-                    }
-                    else {
+                    } else {
                         order[nameList.indexOf(lock)][index] = 0;
                     }
                 }
             }
             lockGroup.order = order;
-            // System.out.println("new order");
-            // for(int i=0; i<nameList.size(); i++) {
-            //     for(int j=0; j<nameList.size(); j++) {
-            //         System.out.println(order[i][j]);
-            //     }
-            // }
-        }
-        else {
-            int [][] temp = new int[order.length+1][order.length+1];
+        } else {
+            int[][] temp = new int[order.length + 1][order.length + 1];
 
-            for(int i=0; i<nameList.size(); i++) {
-                for(int j=0; j<nameList.size(); j++) {
-                    // System.out.println(order[i][j]);
-                    temp[i][j] = order [i][j];
+            for (int i = 0; i < nameList.size(); i++) {
+                for (int j = 0; j < nameList.size(); j++) {
+                    temp[i][j] = order[i][j];
                 }
             }
             nameList.add(lockToBeAdded);
-            // order = Arrays.copyOf(order, order.length + 1);
-            // int [][] temp = new int[order.length+1][order.length+1];
-
-            // for(int i=0; i<nameList.size(); i++) {
-            //     for(int j=0; j<nameList.size(); j++) {
-            //         // System.out.println(order[i][j]);
-            //         temp[i][j] = order [i][j];
-            //     }
-            // }
-            int index =  nameList.indexOf(lockToBeAdded);
-            for(String lock: nameList) {
-                // System.out.println("index " + index);
-                // System.out.println("nameList.indexOf(lock) " + nameList.indexOf(lock));
-                temp[index][nameList.indexOf(lock)] = 0; // since I cannot reach previous locks from the lock I am currently adding
+            int index = nameList.indexOf(lockToBeAdded);
+            for (String lock : nameList) {
+                temp[index][nameList.indexOf(lock)] =
+                        0; // since I cannot reach previous locks from the lock I am currently
+                // adding
                 temp[nameList.indexOf(lock)][index] = 0; // initialisation
             }
             temp[index][index] = 1; // this node just got created
-            for (String ancestor: ancestors) {
-                temp[ancestors.indexOf(ancestor)][index] = 1; // node at index can be reached by ancestor
+            for (String ancestor : ancestors) {
+                temp[ancestors.indexOf(ancestor)][index] =
+                        1; // node at index can be reached by ancestor
             }
             lockGroup.order = temp;
-            // System.out.println("temp");
-            // for(int i=0; i<nameList.size(); i++) {
-            //     for(int j=0; j<nameList.size(); j++) {
-            //         System.out.println(temp[i][j]);
-            //     }
-            // }
-            // System.out.println("new order");
-            // for(int i=0; i<nameList.size(); i++) {
-            //     for(int j=0; j<nameList.size(); j++) {
-            //         System.out.println(lockGroup.order[i][j]);
-            //     }
-            // }
             // PENDING: Merge if the lock has ancestors in multiple lock groups
         }
     }
@@ -125,17 +90,16 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     // Even if one ancestor is common, it belongs to the same group
     // Currently assumed that each lock can only belong to one lock groups
     public Boolean containsAncestors(ArrayList<String> ancestors, ArrayList<String> nameList) {
-        for(String ancestor : ancestors) {
-            if (nameList.contains(ancestor))
-                return true;
+        for (String ancestor : ancestors) {
+            if (nameList.contains(ancestor)) return true;
         }
         return false;
     }
 
     public List<LockGroup> defineAcquisitionOrder(String variable) {
-            LockGroup lockGroup = new LockGroup(variable);
-            lockGroups.add(lockGroup);
-            return lockGroups;
+        LockGroup lockGroup = new LockGroup(variable);
+        lockGroups.add(lockGroup);
+        return lockGroups;
     }
 
     public List<LockGroup> defineAcquisitionOrder(ArrayList<String> ancestors, String variable) {
@@ -144,10 +108,9 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             lockGroups.add(lockGroup);
             return lockGroups;
         }
-        for(LockGroup lockGroup: lockGroups) {
+        for (LockGroup lockGroup : lockGroups) {
             ArrayList<String> nameList = lockGroup.locks;
-            // System.out.println("nameList" + nameList);
-            if(containsAncestors(ancestors, nameList)) {
+            if (containsAncestors(ancestors, nameList)) {
                 addRelationship(ancestors, variable, lockGroup);
                 return lockGroups;
             }
@@ -159,45 +122,37 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
     public static class LockGroup {
         ArrayList<String> locks;
-        int [][] order;
+        int[][] order;
 
         LockGroup(String lockToBeAdded) {
-            // System.out.println("in");
             this.locks = new ArrayList<String>();
             locks.add(lockToBeAdded);
             this.order = new int[1][1];
             order[0][0] = 1;
-            // System.out.println("nameList in constructor" + locks);
-            // System.out.println(order[0][0]);
         }
 
         LockGroup(ArrayList<String> ancestors, String lockToBeAdded) {
             this.locks = new ArrayList<String>();
             locks.addAll(ancestors);
             locks.add(lockToBeAdded);
-            int index =  locks.indexOf(lockToBeAdded);
+            int index = locks.indexOf(lockToBeAdded);
             int numberOfAncestors = ancestors.size();
-            this.order = new int[numberOfAncestors+1][numberOfAncestors+1];
-            for(int i=0; i<numberOfAncestors+1; i++) {
-                for(int j=0; j<numberOfAncestors+1; j++) {
+            this.order = new int[numberOfAncestors + 1][numberOfAncestors + 1];
+            for (int i = 0; i < numberOfAncestors + 1; i++) {
+                for (int j = 0; j < numberOfAncestors + 1; j++) {
                     order[i][j] = 0;
                 }
             }
             order[index][index] = 1; // this implies that the node has been created
             for (String ancestor : ancestors)
-                order[ancestors.indexOf(ancestor)][index] = 1; // node at index can be reached by ancestor
-            // System.out.println("nameList in constructor" + locks);
-            // for(int i=0; i<numberOfAncestors+1; i++) {
-            //     for(int j=0; j<numberOfAncestors+1; j++) {
-            //         System.out.println(order[i][j]);
-            //     }
-            // }
+                order[ancestors.indexOf(ancestor)][index] =
+                        1; // node at index can be reached by ancestor
         }
-
     }
 
     @Override
-    public QualifierHierarchy createQualifierHierarchy(MultiGraphQualifierHierarchy.MultiGraphFactory ignorefactory) {
+    public QualifierHierarchy createQualifierHierarchy(
+            MultiGraphQualifierHierarchy.MultiGraphFactory ignorefactory) {
         MultiGraphQualifierHierarchy.MultiGraphFactory factory = createQualifierHierarchyFactory();
 
         factory.addQualifier(ACQUIRED_AFTER);
@@ -217,7 +172,7 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
         @Override
         public boolean isSubtype(AnnotationMirror rhs, AnnotationMirror lhs) {
-            
+
             if (AnnotationUtils.areSameIgnoringValues(rhs, UNQUALIFIED)
                     && AnnotationUtils.areSameIgnoringValues(lhs, ACQUIRED_AFTER)) {
                 return true;

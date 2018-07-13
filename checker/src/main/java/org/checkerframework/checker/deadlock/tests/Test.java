@@ -41,7 +41,8 @@ public class Test {
 }
 
 class MyClass {
-    public static @AcquiredAfter({"MyClass.myLock2", "MyClass.myLock3"}) Object myLock = new Object();
+    public static @AcquiredAfter({"MyClass.myLock2", "MyClass.myLock3"}) Object myLock =
+            new Object();
     public static Object myLock2 = new Object();
     public static @AcquiredAfter("MyClass.myLock2") Object myLock3 = new Object();
 }
@@ -56,12 +57,16 @@ class SynchronizedCounter {
 }
 
 // COMMAND
-// javac -AprintErrorStack -processor deadlock checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java 
+// javac -AprintErrorStack -processor deadlock
+// checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java
 // OUTPUT
-// checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java:8: error: [all.mentioned.locks.not.acquired] (all.mentioned.locks.not.acquired)
+// checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java:8: error:
+// [all.mentioned.locks.not.acquired] (all.mentioned.locks.not.acquired)
 //     void myMethod1(Object a) {
 //          ^
-// checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java:18: error: [method.invocation.lock.not.mentioned:MyClass.myLock] (method.invocation.lock.not.mentioned:MyClass.myLock)
+// checker/src/main/java/org/checkerframework/checker/deadlock/tests/Test.java:18: error:
+// [method.invocation.lock.not.mentioned:MyClass.myLock]
+// (method.invocation.lock.not.mentioned:MyClass.myLock)
 //                 myMethod1(b);
 //                          ^
 // 2 errors
