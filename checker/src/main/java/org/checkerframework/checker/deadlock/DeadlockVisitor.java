@@ -11,15 +11,19 @@ import java.util.Collections;
 import java.util.List;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
 import org.checkerframework.checker.deadlock.qual.Acquires;
+import org.checkerframework.checker.deadlock.qual.AcquiredAfter;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.source.Result;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
+import java.util.Arrays;
+import org.checkerframework.checker.deadlock.DeadlockAnnotatedTypeFactory.*;
 
 /**
  * The DeadlockVisitor enforces the special type-checking rules described in the Deadlock Checker
@@ -31,6 +35,7 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
     private static List<String> methodAcquiresLocks = null;
     private static List<String> methodAcquiredLocks = null;
+    private static List<LockGroup> listOfLockGroups = null;
     // private static List<LockExpression> methodAcquiresLocksList = null;
 
     public DeadlockVisitor(BaseTypeChecker checker) {
@@ -41,20 +46,24 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
     public Void visitVariable(VariableTree node, Void p) {
 
         TypeMirror tm = TreeUtils.typeOf(node);
-        // System.out.println("VARIABLE DECLARATION: " + tm);
-        AnnotatedTypeMirror atm = atypeFactory.getAnnotatedType(node);
-        // System.out.println("annotated type: " + atm);
-
+        String lockToBeAdded = node.getName().toString();
+        List<? extends AnnotationTree> annotationTreeList = node.getModifiers().getAnnotations();
+        if(node.getModifiers().getAnnotations().isEmpty()) {
+            listOfLockGroups = atypeFactory.defineAcquisitionOrder(lockToBeAdded);
+        }
+        for(AnnotationTree annotation: annotationTreeList) {
+            if(annotation.getAnnotationType().toString().equals("AcquiredAfter")) {
+                for(ExpressionTree argument: annotation.getArguments()) {
+                    String arg = argument.toString();
+                    if(arg.contains("value")) {
+                        String value = arg.substring(arg.indexOf("=")+2, arg.length());
+                        ArrayList<String> acquiredAfter = getValueArray(value);
+                        listOfLockGroups = atypeFactory.defineAcquisitionOrder(acquiredAfter, lockToBeAdded);
+                    }
+                }
+            }
+        }
         return super.visitVariable(node, p);
-    }
-
-    private <T> List<T> append(List<T> lst, T o) {
-        if (o == null) return lst;
-
-        List<T> newList = new ArrayList<T>(lst.size() + 1);
-        newList.addAll(lst);
-        newList.add(o);
-        return newList;
     }
 
     @Override
@@ -66,10 +75,10 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
         List<String> prevLocks = atypeFactory.getHeldLock();
         List<String> locks = prevLocks;
-        System.out.println("Previously held locks " + prevLocks);
+        // System.out.println("Previously held locks " + prevLocks);
 
         List<String> methodLocks = methodAcquires(method);
-        System.out.println("Method will acquire " + methodLocks);
+        // System.out.println("Method will acquire " + methodLocks);
         methodAcquiresLocks = methodLocks;
 
         try {
@@ -88,15 +97,8 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                 }
                 locks = append(locks, appendLock);
                 atypeFactory.setHeldLocks(locks);
-                System.out.println("Synchronized method. Currently held locks " + locks);
+                // System.out.println("Synchronized method. Currently held locks " + locks);
             }
-
-            // AnnotationMirror acquires = atypeFactory.getDeclAnnotation(method, Acquires.class);
-            // if(acquires!=null) {
-            //     List<LockExpression> expressions = getLockExpressions(false, acquires, node);
-            //     methodAcquiresLocksList = expressions;
-            //     System.out.println("Method will acquire " + expressions);
-            // }
 
             return super.visitMethod(node, p);
         } finally {
@@ -123,7 +125,7 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
         List<String> prevLocks = atypeFactory.getHeldLock();
         List<String> locks = prevLocks;
-        System.out.println("Previously held locks " + prevLocks);
+        // System.out.println("Previously held locks " + prevLocks);
 
         if (method.getModifiers().contains(Modifier.SYNCHRONIZED)) {
             String appendLock = "";
@@ -138,14 +140,30 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                 checker.report(
                         Result.failure("method.invocation.lock.not.mentioned:" + appendLock), node);
             }
-            System.out.println("Synchronized method. Currently held locks " + locks);
+            // System.out.println("Synchronized method. Currently held locks " + locks);
         }
 
-        List<String> methodLocks = methodAcquires(method);
-        if (!methodLocks.isEmpty()) {
-            System.out.println("Method call will acquire locks " + methodLocks);
+        List<String> methodLocks = methodAcquires(method); //locks that method call will acquire
 
-            // check if lock is in @Acquires
+        // check if any currently-held lock is not in append lock's predecessor
+        if(listOfLockGroups!=null && !listOfLockGroups.isEmpty())
+        {
+            for(LockGroup lockGroup: listOfLockGroups) {
+                for (String appendLock: methodLocks) {
+                    if (lockGroup.locks.contains(appendLock)) {
+                        if(!checkAncestors(prevLocks, lockGroup, appendLock)) {
+                            checker.report( Result.failure(
+                                    "incomplete.ordering.between.modules:"
+                                            + appendLock), node);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!methodLocks.isEmpty()) {
+
+            // check if locks that method call acquire are present in @Acquires
             for (String lock : methodLocks) {
                 if (!checkIfAcquiresContainsLock(lock)) {
                     checker.report(
@@ -153,7 +171,7 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                 }
             }
 
-            System.out.println("lock release occurs immediately after the method call.");
+            // System.out.println("lock release occurs immediately after the method call.");
         }
 
         return super.visitMethodInvocation(node, p);
@@ -166,39 +184,35 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         // System.out.println("LOCK ACQUIRED BY SYNC_STATEMENT: " + synchronizedExpression);
 
         List<String> prevLocks = atypeFactory.getHeldLock();
-        System.out.println("Previously held locks " + prevLocks);
+        // System.out.println("Previously held locks " + prevLocks);
         try {
 
-            // String lockInHere = TreeUtils.skipParens(node.getExpression()).toString();
-            // TreePath currentPath = getCurrentPath();
-            // List<Receiver> params =
-            //         FlowExpressions.getParametersOfEnclosingMethod(atypeFactory, currentPath);
-            // TypeMirror enclosingType = TreeUtils.typeOf(TreeUtils.enclosingClass(currentPath));
-            // Receiver pseudoReceiver =
-            //         FlowExpressions.internalReprOfPseudoReceiver(currentPath, enclosingType);
-            // FlowExpressionContext exprContext =
-            //         new FlowExpressionContext(pseudoReceiver, params, atypeFactory.getContext());
-            // LockExpression lockExpression = parseExpressionString(lockInHere, exprContext,
-            // currentPath);
-            // if(!checkIfListContainsLock(lockExpression)) {
-            //     ErrorReporter.errorAbort("Method is acquiring unmentioned lock: " +
-            // lockExpression);
-            // }
-
+            String appendLock = TreeUtils.skipParens(node.getExpression()).toString();
             // check if lock is in @Acquires
-            if (!checkIfAcquiresContainsLock(
-                    TreeUtils.skipParens(node.getExpression()).toString())) {
+            if (!checkIfAcquiresContainsLock(appendLock)) {
                 checker.report(
                         Result.failure(
                                 "synchronizedExpression in method acquires lock not mentioned: "
-                                        + TreeUtils.skipParens(node.getExpression()).toString()),
-                        node);
+                                        + appendLock), node);
             }
-            List<String> locks =
-                    append(prevLocks, TreeUtils.skipParens(node.getExpression()).toString());
 
-            atypeFactory.setHeldLocks(locks);
-            System.out.println("Currently held locks " + locks);
+            for(LockGroup lockGroup: listOfLockGroups) {
+                if (lockGroup.locks.contains(appendLock)) {
+                    if(checkAncestors(prevLocks, lockGroup, appendLock)) {
+                        List<String> locks = append(prevLocks, appendLock);
+                        atypeFactory.setHeldLocks(locks);
+                        // System.out.println("Currently held locks " + locks);
+                    }
+                    else {
+                        checker.report(
+                            Result.failure(
+                                    "incomplete.definition.or.inconsistent.with.defined.order"
+                                            + appendLock), node);
+                    }
+                }
+            }
+
+            
             return super.visitSynchronized(node, p);
         } finally {
             atypeFactory.setHeldLocks(prevLocks);
@@ -207,12 +221,6 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
     @Override
     public Void visitAnnotation(AnnotationTree tree, Void p) {
-
-        // ArrayList<AnnotationTree> annotationTreeList = new ArrayList<>(1);
-        // annotationTreeList.add(tree);
-        //  List<AnnotationMirror> amList =
-        // TreeUtils.annotationsFromTypeAnnotationTrees(annotationTreeList);
-        // System.out.println("ANNOTATION FOUND: " + amList);
 
         return super.visitAnnotation(tree, p);
     }
@@ -234,6 +242,51 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         return locks;
     }
 
+    private static ArrayList<String> getValueArray(String value) {
+        ArrayList<String> acquiredAfter = new ArrayList<String>();
+        if (value.contains(",")) {
+            value = value.replaceAll("\"", "");
+            value = value.substring(1, value.length()-1);
+            String[] list = value.split("\\s*,\\s*");
+            // System.out.println(list);
+            ArrayList<String> aList = new ArrayList<String>();
+            for(String val: list) {
+                aList.add(val);
+            }
+            return aList;
+        } else {
+            acquiredAfter.add(value.substring(1, value.length()-1));
+            return acquiredAfter;
+        }
+    }
+
+    private <T> List<T> append(List<T> lst, T o) {
+        if (o == null) return lst;
+
+        List<T> newList = new ArrayList<T>(lst.size() + 1);
+        newList.addAll(lst);
+        newList.add(o);
+        return newList;
+    }
+
+    // checks if any currently-held lock is not in lockToBeAdded's predecessors
+    public static Boolean checkAncestors(List<String> prevLocks, LockGroup lockGroup, String lockToBeAdded) {
+        ArrayList<String> locks = lockGroup.locks;
+        int [][] order = lockGroup.order;
+        int index = locks.indexOf(lockToBeAdded);
+        for (String lock: prevLocks) {
+            if(locks.contains(lock)) {
+                if(order[locks.indexOf(lock)][index]!=1) {
+                    return false;
+                }
+            }
+            else {
+                return false;
+            }
+        }
+        return true;
+    }    
+
     // checks if lock is present in @Acquires annotation
     // Adds to methodAcquiredLocks list if present. That list keeps track of acquired locks
     private Boolean checkIfAcquiresContainsLock(String lockExpression) {
@@ -252,98 +305,5 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         }
         return false;
     }
-
-    // private Boolean checkIfListContainsLock(LockExpression lockExpression) {
-    //     for(LockExpression lock : methodAcquiresLocksList) {
-    //         if (lock.expressionString.equals(lockExpression.expressionString)) {
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
-
-    // private void checkLock(Tree tree, AnnotationMirror acquiresAnno) {
-    //     if (acquiresAnno == null) {
-    //         ErrorReporter.errorAbort("DeadlockLockVisitor.checkLock: Anno cannot be null");
-    //     }
-
-    //     List<LockExpression> expressions = getLockExpressions(acquiresAnno, tree);
-    //     if (expressions.isEmpty()) {
-    //         return;
-    //     }
-
-    //     for (LockExpression expression : expressions) {
-    //         if (expression.error != null) {
-    //             checker.report(
-    //                     Result.failure(
-    //                             "expression.unparsable.type.invalid",
-    // expression.error.toString()),
-    //                     tree);
-    //         } else if (expression.lockExpression == null) {
-    //             checker.report(
-    //                     Result.failure(
-    //                             "expression.unparsable.type.invalid",
-    // expression.expressionString),
-    //                     tree);
-    //         }
-    //     }
-    // }
-
-    // private List<LockExpression> getLockExpressions(AnnotationMirror acquiresAnno, Tree tree) {
-
-    //     List<String> expressions =
-    //             AnnotationUtils.getElementValueArray(acquiresAnno, "value", String.class, true);
-
-    //     if (expressions.isEmpty()) {
-    //         return Collections.emptyList();
-    //     }
-
-    //     TreePath currentPath = getCurrentPath();
-    //     List<Receiver> params =
-    //             FlowExpressions.getParametersOfEnclosingMethod(atypeFactory, currentPath);
-
-    //     TypeMirror enclosingType = TreeUtils.typeOf(TreeUtils.enclosingClass(currentPath));
-    //     Receiver pseudoReceiver =
-    //             FlowExpressions.internalReprOfPseudoReceiver(currentPath, enclosingType);
-    //     FlowExpressionContext exprContext =
-    //             new FlowExpressionContext(pseudoReceiver, params, atypeFactory.getContext());
-
-    //     List<LockExpression> lockExpressions = new ArrayList<>();
-    //     for (String expression : expressions) {
-    //         lockExpressions.add(parseExpressionString(expression, exprContext, currentPath));
-    //     }
-    //     return lockExpressions;
-    // }
-
-    // private LockExpression parseExpressionString(
-    //         String expression,
-    //         FlowExpressionContext flowExprContext,
-    //         TreePath path) {
-
-    //     LockExpression lockExpression = new LockExpression(expression);
-    //     if (DependentTypesError.isExpressionError(expression)) {
-    //         lockExpression.error = new DependentTypesError(expression);
-    //         return lockExpression;
-    //     }
-
-    //     try {
-    //             lockExpression.lockExpression =
-    //                     FlowExpressionParseUtil.parse(expression, flowExprContext, path, true);
-    //             return lockExpression;
-    //     } catch (FlowExpressionParseException ex) {
-    //         lockExpression.error = new DependentTypesError(expression, ex);
-    //         return lockExpression;
-    //     }
-    // }
-
-    // private static class LockExpression {
-    //     final String expressionString;
-    //     Receiver lockExpression = null;
-    //     DependentTypesError error = null;
-
-    //     LockExpression(String expression) {
-    //         this.expressionString = expression;
-    //     }
-    // }
 
 }
