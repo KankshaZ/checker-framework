@@ -42,10 +42,19 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         return Collections.unmodifiableList(heldLocks);
     }
 
+    public void setLockGroups(List<LockGroup> lockGroups) {
+        this.lockGroups = lockGroups;
+    }
+
+    public List<LockGroup> getLockGroups() {
+        return lockGroups;
+    }
+
     public static void addRelationship(
             ArrayList<String> ancestors, String lockToBeAdded, LockGroup lockGroup) {
         ArrayList<String> nameList = lockGroup.locks;
         int[][] order = lockGroup.order;
+        // lock already present in lock group
         if (nameList.contains(lockToBeAdded)) {
             int index = nameList.indexOf(lockToBeAdded);
             order[index][index] = 1; // this node just got created
@@ -61,7 +70,11 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 }
             }
             lockGroup.order = order;
-        } else {
+        }
+        // adding specifically only the lock to be added assuming all locks
+        // in lockToBeAdded's nameList are present in the lock group
+        // must handle case of locks not being present and adding multiple locks ke liye lines
+        else {
             int[][] temp = new int[order.length + 1][order.length + 1];
 
             for (int i = 0; i < nameList.size(); i++) {
@@ -83,7 +96,149 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                         1; // node at index can be reached by ancestor
             }
             lockGroup.order = temp;
-            // PENDING: Merge if the lock has ancestors in multiple lock groups
+        }
+    }
+
+    public static void addNewAncestors(
+            ArrayList<String> ancestors,
+            String lockToBeAdded,
+            LockGroup lockGroup,
+            ArrayList<String> incompleteListOfLocks) {
+        ArrayList<String> nameList = lockGroup.locks;
+        int[][] order = lockGroup.order;
+
+        System.out.println("orderInNewAnc  ");
+        for (int k = 0; k < order.length; k++) {
+            for (int j = 0; j < order.length; j++) {
+                System.out.print(order[k][j]);
+            }
+            System.out.println();
+        }
+
+        ArrayList<String> addedLocks = new ArrayList<String>();
+        int count = 0;
+        for (String ancestor : ancestors) {
+            if (!incompleteListOfLocks.contains(ancestor)) {
+                count++;
+                nameList.add(ancestor);
+                addedLocks.add(ancestor);
+            }
+        }
+
+        int[][] temp = new int[order.length + count][order.length + count];
+
+        for (int i = 0; i < order.length; i++) {
+            for (int j = 0; j < order.length; j++) {
+                temp[i][j] = order[i][j];
+            }
+        }
+
+        for (int i = 0; i < temp.length; i++) {
+            for (String lock : addedLocks) {
+                temp[i][nameList.indexOf(lock)] =
+                        0; // since I cannot reach previous locks from the lock I am currently
+                // adding
+                temp[nameList.indexOf(lock)][i] = 0; // initialisation
+            }
+        }
+        lockGroup.order = temp;
+
+        System.out.println("tempInNewAnc  ");
+        for (int k = 0; k < temp.length; k++) {
+            for (int j = 0; j < temp.length; j++) {
+                System.out.print(temp[k][j]);
+            }
+            System.out.println();
+        }
+    }
+
+    // remember that two lock groups will never contain the lockToBeAdded
+    // check for cycle is left
+    public void merge(
+            int indexOfLockGroup,
+            LockGroup nextLockGroup,
+            String lockToBeAdded,
+            ArrayList<String> incompleteListOfLocks,
+            ArrayList<String> ancestors) {
+
+        LockGroup lockGroup = lockGroups.get(indexOfLockGroup);
+        ArrayList<String> nameList = lockGroup.locks;
+        int[][] order = lockGroup.order;
+        ArrayList<String> nameList2 = nextLockGroup.locks;
+        int[][] order2 = nextLockGroup.order;
+        ArrayList<String> newNameList = nameList;
+        for (String name : nameList2) {
+            newNameList.add(name);
+        }
+
+        System.out.println("order1  ");
+        for (int k = 0; k < order.length; k++) {
+            for (int j = 0; j < order.length; j++) {
+                System.out.print(order[k][j]);
+            }
+            System.out.println();
+        }
+
+        System.out.println("order2  ");
+        for (int k = 0; k < order2.length; k++) {
+            for (int j = 0; j < order2.length; j++) {
+                System.out.print(order2[k][j]);
+            }
+            System.out.println();
+        }
+
+        int index = -1;
+        int[][] temp = new int[order.length + order2.length][order.length + order2.length];
+        for (int i = 0; i < order.length; i++) {
+            for (int j = 0; j < order.length; j++) {
+                temp[i][j] = order[i][j];
+            }
+            for (int j = order.length; j < order.length + order2.length; j++) {
+                temp[i][j] = 0;
+            }
+        }
+
+        for (int i = order.length; i < order.length + order2.length; i++) {
+            for (int j = 0; j < order.length; j++) {
+                temp[i][j] = 0;
+            }
+            for (int j = order.length; j < order.length + order2.length; j++) {
+                temp[i][j] = order2[i - order.length][j - order.length];
+            }
+        }
+        if (nameList.contains(lockToBeAdded)) {
+            index = nameList.indexOf(lockToBeAdded);
+        } else if (nameList2.contains(lockToBeAdded)) {
+            index = nameList2.indexOf(lockToBeAdded);
+        }
+
+        if (index != -1) {
+            for (String lock : incompleteListOfLocks) {
+                temp[newNameList.indexOf(lock)][index] =
+                        1; // node at index can be reached by ancestor
+                if (temp[index][newNameList.indexOf(lock)] == 1) {
+                    System.out.println("CYCLE.");
+                }
+            }
+            temp[index][index] = 1;
+        }
+
+        System.out.println("temp  ");
+        for (int k = 0; k < temp.length; k++) {
+            for (int j = 0; j < temp.length; j++) {
+                System.out.print(temp[k][j]);
+            }
+            System.out.println();
+        }
+
+        lockGroups.get(indexOfLockGroup).locks = newNameList;
+        lockGroups.get(indexOfLockGroup).order = temp;
+
+        if (incompleteListOfLocks.size() == ancestors.size()) {
+            if (index == -1) {
+                LockGroup newLockGroup = lockGroups.get(indexOfLockGroup);
+                addRelationship(ancestors, lockToBeAdded, newLockGroup);
+            }
         }
     }
 
@@ -94,6 +249,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             if (nameList.contains(ancestor)) return true;
         }
         return false;
+    }
+
+    public Boolean containsAllAncestors(ArrayList<String> ancestors, ArrayList<String> nameList) {
+        for (String ancestor : ancestors) {
+            if (!nameList.contains(ancestor)) return false;
+        }
+        return true;
     }
 
     public List<LockGroup> defineAcquisitionOrder(String variable) {
@@ -108,10 +270,83 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             lockGroups.add(lockGroup);
             return lockGroups;
         }
+        int indexOfLockGroup = -1;
+        ArrayList<String> incompleteListOfLocks = new ArrayList<String>();
         for (LockGroup lockGroup : lockGroups) {
             ArrayList<String> nameList = lockGroup.locks;
+            System.out.println("nameList " + nameList);
             if (containsAncestors(ancestors, nameList)) {
+                // contains all ancestors implies belongs to single lock group
+                if (containsAllAncestors(ancestors, nameList)) {
+                    addRelationship(ancestors, variable, lockGroup);
+                    return lockGroups;
+                }
+                // if I reached here it can mean two things
+                // 1. variable has ancestors present in multiple lock groups
+                // 2. a few of its ancestors have not been created yet
+
+                // Let's check number 1. first
+                indexOfLockGroup = lockGroups.indexOf(lockGroup);
+                for (String ancestor : ancestors) {
+                    if (nameList.contains(ancestor)) incompleteListOfLocks.add(ancestor);
+                }
+                List<LockGroup> lockGroupsCopy = new ArrayList<LockGroup>(lockGroups);
+                int removed = 0;
+                for (int i = indexOfLockGroup + 1; i < lockGroupsCopy.size(); i++) {
+                    LockGroup nextLockGroup = lockGroupsCopy.get(i);
+                    ArrayList<String> nameListNext = nextLockGroup.locks;
+                    System.out.println("nameListNext " + nameListNext);
+                    System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
+                    System.out.println("ancestors " + ancestors);
+
+                    if (containsAncestors(ancestors, nameListNext)) {
+                        for (String ancestor : ancestors) {
+                            if (nameListNext.contains(ancestor))
+                                incompleteListOfLocks.add(ancestor);
+                        }
+                        System.out.println("nameListNext " + nameListNext);
+                        System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
+                        System.out.println("ancestors " + ancestors);
+                        merge(
+                                indexOfLockGroup,
+                                nextLockGroup,
+                                variable,
+                                incompleteListOfLocks,
+                                ancestors);
+                        // System.out.println("i (in copy index)" + i);
+                        // System.out.println("indexOfLockGroup " + indexOfLockGroup);
+                        // System.out.println("i-removed " + (i-removed));
+                        lockGroups.remove(i - removed);
+                        removed++;
+                        if (incompleteListOfLocks.size() == ancestors.size()) {
+                            System.out.println("FInal  " + lockGroup.locks);
+                            System.out.println("order  ");
+                            for (int k = 0; k < lockGroup.order.length; k++) {
+                                for (int j = 0; j < lockGroup.order.length; j++) {
+                                    System.out.print(lockGroup.order[k][j]);
+                                }
+                                System.out.println();
+                            }
+                            System.out.println(lockGroups.size() + " size");
+                            return lockGroups;
+                        }
+                    }
+                }
+
+                // if I got out of this loop it means
+                // number 2: a few of its ancestors have not been created yet
+                // so add the locks and un-created ancestors
+                // return lockGroups;
+                addNewAncestors(ancestors, variable, lockGroup, incompleteListOfLocks);
                 addRelationship(ancestors, variable, lockGroup);
+                System.out.println("FInal2  " + lockGroup.locks);
+                System.out.println("order  ");
+                for (int i = 0; i < lockGroup.order.length; i++) {
+                    for (int j = 0; j < lockGroup.order.length; j++) {
+                        System.out.print(lockGroup.order[i][j]);
+                    }
+                    System.out.println();
+                }
                 return lockGroups;
             }
         }

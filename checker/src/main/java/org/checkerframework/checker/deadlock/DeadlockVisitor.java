@@ -6,6 +6,7 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.SynchronizedTree;
 import com.sun.source.tree.VariableTree;
+import com.sun.source.util.TreePath;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -17,7 +18,12 @@ import org.checkerframework.checker.deadlock.DeadlockAnnotatedTypeFactory.*;
 import org.checkerframework.checker.deadlock.qual.Acquires;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
+import org.checkerframework.dataflow.analysis.FlowExpressions;
+import org.checkerframework.dataflow.analysis.FlowExpressions.Receiver;
 import org.checkerframework.framework.source.Result;
+import org.checkerframework.framework.util.FlowExpressionParseUtil;
+import org.checkerframework.framework.util.FlowExpressionParseUtil.FlowExpressionContext;
+import org.checkerframework.framework.util.FlowExpressionParseUtil.FlowExpressionParseException;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
 
@@ -40,9 +46,27 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
     @Override
     public Void visitVariable(VariableTree node, Void p) {
-
+        System.out.println("var" + node);
         TypeMirror tm = TreeUtils.typeOf(node);
         String lockToBeAdded = node.getName().toString();
+        try {
+            TreePath currentPath = getCurrentPath();
+            List<Receiver> params =
+                    FlowExpressions.getParametersOfEnclosingMethod(atypeFactory, currentPath);
+            TypeMirror enclosingType = TreeUtils.typeOf(TreeUtils.enclosingClass(currentPath));
+            Receiver pseudoReceiver =
+                    FlowExpressions.internalReprOfPseudoReceiver(currentPath, enclosingType);
+            FlowExpressionContext exprContext =
+                    new FlowExpressionContext(pseudoReceiver, params, atypeFactory.getContext());
+            Receiver lockExpression =
+                    FlowExpressionParseUtil.parse(lockToBeAdded, exprContext, currentPath, true);
+            System.out.println("SEE THIS:          !!        " + lockExpression);
+        } catch (FlowExpressionParseException e) {
+
+        }
+
+        // List<LockGroup> prevGroups = atypeFactory.getLockGroups();
+        // try {
         List<? extends AnnotationTree> annotationTreeList = node.getModifiers().getAnnotations();
         if (node.getModifiers().getAnnotations().isEmpty()) {
             listOfLockGroups = atypeFactory.defineAcquisitionOrder(lockToBeAdded);
@@ -61,6 +85,9 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
             }
         }
         return super.visitVariable(node, p);
+        // } finally {
+        //     atypeFactory.setLockGroups(prevGroups);
+        // }
     }
 
     @Override
@@ -77,6 +104,9 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         List<String> methodLocks = methodAcquires(method);
         // System.out.println("Method will acquire " + methodLocks);
         methodAcquiresLocks = methodLocks;
+
+        // List<LockGroup> prevGroups = atypeFactory.getLockGroups();
+        System.out.println("IN METHOD");
 
         try {
             if (method.getModifiers().contains(Modifier.SYNCHRONIZED)) {
@@ -100,7 +130,8 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
             return super.visitMethod(node, p);
         } finally {
             atypeFactory.setHeldLocks(prevLocks);
-
+            // atypeFactory.setLockGroups(prevGroups);
+            System.out.println("OUT OF METHOD");
             // check if lock is not within method
             if (!methodAcquiresLocks.isEmpty()) {
                 if (methodAcquiredLocks != null) {
@@ -118,7 +149,8 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
     public Void visitMethodInvocation(MethodInvocationTree node, Void p) {
 
         ExecutableElement method = TreeUtils.elementFromUse(node);
-        // System.out.println("METHOD INVOCATION:  " + method);
+        System.out.println("METHOD INVOCATION:  " + node);
+        System.out.println("returns:  " + method.getReturnType());
 
         List<String> prevLocks = atypeFactory.getHeldLock();
         List<String> locks = prevLocks;
