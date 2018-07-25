@@ -42,13 +42,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         return Collections.unmodifiableList(heldLocks);
     }
 
-    public void setLockGroups(List<LockGroup> lockGroups) {
-        this.lockGroups = lockGroups;
-    }
+    // public void setLockGroups(List<LockGroup> lockGroups) {
+    //     this.lockGroups = lockGroups;
+    // }
 
-    public List<LockGroup> getLockGroups() {
-        return lockGroups;
-    }
+    // public List<LockGroup> getLockGroups() {
+    //     return lockGroups;
+    // }
 
     public static void addRelationship(
             ArrayList<String> ancestors, String lockToBeAdded, LockGroup lockGroup) {
@@ -107,13 +107,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         ArrayList<String> nameList = lockGroup.locks;
         int[][] order = lockGroup.order;
 
-        System.out.println("orderInNewAnc  ");
-        for (int k = 0; k < order.length; k++) {
-            for (int j = 0; j < order.length; j++) {
-                System.out.print(order[k][j]);
-            }
-            System.out.println();
-        }
+        // System.out.println("orderInNewAnc  ");
+        // for (int k = 0; k < order.length; k++) {
+        //     for (int j = 0; j < order.length; j++) {
+        //         System.out.print(order[k][j]);
+        //     }
+        //     System.out.println();
+        // }
 
         ArrayList<String> addedLocks = new ArrayList<String>();
         int count = 0;
@@ -143,13 +143,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         }
         lockGroup.order = temp;
 
-        System.out.println("tempInNewAnc  ");
-        for (int k = 0; k < temp.length; k++) {
-            for (int j = 0; j < temp.length; j++) {
-                System.out.print(temp[k][j]);
-            }
-            System.out.println();
-        }
+        // System.out.println("tempInNewAnc  ");
+        // for (int k = 0; k < temp.length; k++) {
+        //     for (int j = 0; j < temp.length; j++) {
+        //         System.out.print(temp[k][j]);
+        //     }
+        //     System.out.println();
+        // }
     }
 
     // remember that two lock groups will never contain the lockToBeAdded
@@ -171,21 +171,21 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             newNameList.add(name);
         }
 
-        System.out.println("order1  ");
-        for (int k = 0; k < order.length; k++) {
-            for (int j = 0; j < order.length; j++) {
-                System.out.print(order[k][j]);
-            }
-            System.out.println();
-        }
+        // System.out.println("order1  ");
+        // for (int k = 0; k < order.length; k++) {
+        //     for (int j = 0; j < order.length; j++) {
+        //         System.out.print(order[k][j]);
+        //     }
+        //     System.out.println();
+        // }
 
-        System.out.println("order2  ");
-        for (int k = 0; k < order2.length; k++) {
-            for (int j = 0; j < order2.length; j++) {
-                System.out.print(order2[k][j]);
-            }
-            System.out.println();
-        }
+        // System.out.println("order2  ");
+        // for (int k = 0; k < order2.length; k++) {
+        //     for (int j = 0; j < order2.length; j++) {
+        //         System.out.print(order2[k][j]);
+        //     }
+        //     System.out.println();
+        // }
 
         int index = -1;
         int[][] temp = new int[order.length + order2.length][order.length + order2.length];
@@ -223,13 +223,13 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             temp[index][index] = 1;
         }
 
-        System.out.println("temp  ");
-        for (int k = 0; k < temp.length; k++) {
-            for (int j = 0; j < temp.length; j++) {
-                System.out.print(temp[k][j]);
-            }
-            System.out.println();
-        }
+        // System.out.println("temp  ");
+        // for (int k = 0; k < temp.length; k++) {
+        //     for (int j = 0; j < temp.length; j++) {
+        //         System.out.print(temp[k][j]);
+        //     }
+        //     System.out.println();
+        // }
 
         lockGroups.get(indexOfLockGroup).locks = newNameList;
         lockGroups.get(indexOfLockGroup).order = temp;
@@ -274,7 +274,7 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         ArrayList<String> incompleteListOfLocks = new ArrayList<String>();
         for (LockGroup lockGroup : lockGroups) {
             ArrayList<String> nameList = lockGroup.locks;
-            System.out.println("nameList " + nameList);
+            // System.out.println("nameList " + nameList);
             if (containsAncestors(ancestors, nameList)) {
                 // contains all ancestors implies belongs to single lock group
                 if (containsAllAncestors(ancestors, nameList)) {
@@ -295,18 +295,18 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 for (int i = indexOfLockGroup + 1; i < lockGroupsCopy.size(); i++) {
                     LockGroup nextLockGroup = lockGroupsCopy.get(i);
                     ArrayList<String> nameListNext = nextLockGroup.locks;
-                    System.out.println("nameListNext " + nameListNext);
-                    System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
-                    System.out.println("ancestors " + ancestors);
+                    // System.out.println("nameListNext " + nameListNext);
+                    // System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
+                    // System.out.println("ancestors " + ancestors);
 
                     if (containsAncestors(ancestors, nameListNext)) {
                         for (String ancestor : ancestors) {
                             if (nameListNext.contains(ancestor))
                                 incompleteListOfLocks.add(ancestor);
                         }
-                        System.out.println("nameListNext " + nameListNext);
-                        System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
-                        System.out.println("ancestors " + ancestors);
+                        // System.out.println("nameListNext " + nameListNext);
+                        // System.out.println("incompleteListOfLocks " + incompleteListOfLocks);
+                        // System.out.println("ancestors " + ancestors);
                         merge(
                                 indexOfLockGroup,
                                 nextLockGroup,
@@ -319,15 +319,15 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                         lockGroups.remove(i - removed);
                         removed++;
                         if (incompleteListOfLocks.size() == ancestors.size()) {
-                            System.out.println("FInal  " + lockGroup.locks);
-                            System.out.println("order  ");
-                            for (int k = 0; k < lockGroup.order.length; k++) {
-                                for (int j = 0; j < lockGroup.order.length; j++) {
-                                    System.out.print(lockGroup.order[k][j]);
-                                }
-                                System.out.println();
-                            }
-                            System.out.println(lockGroups.size() + " size");
+                            // System.out.println("FInal  " + lockGroup.locks);
+                            // System.out.println("order  ");
+                            // for (int k = 0; k < lockGroup.order.length; k++) {
+                            //     for (int j = 0; j < lockGroup.order.length; j++) {
+                            //         System.out.print(lockGroup.order[k][j]);
+                            //     }
+                            //     System.out.println();
+                            // }
+                            // System.out.println(lockGroups.size() + " size");
                             return lockGroups;
                         }
                     }
@@ -339,14 +339,14 @@ public class DeadlockAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 // return lockGroups;
                 addNewAncestors(ancestors, variable, lockGroup, incompleteListOfLocks);
                 addRelationship(ancestors, variable, lockGroup);
-                System.out.println("FInal2  " + lockGroup.locks);
-                System.out.println("order  ");
-                for (int i = 0; i < lockGroup.order.length; i++) {
-                    for (int j = 0; j < lockGroup.order.length; j++) {
-                        System.out.print(lockGroup.order[i][j]);
-                    }
-                    System.out.println();
-                }
+                // System.out.println("FInal2  " + lockGroup.locks);
+                // System.out.println("order  ");
+                // for (int i = 0; i < lockGroup.order.length; i++) {
+                //     for (int j = 0; j < lockGroup.order.length; j++) {
+                //         System.out.print(lockGroup.order[i][j]);
+                //     }
+                //     System.out.println();
+                // }
                 return lockGroups;
             }
         }

@@ -7,6 +7,7 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.SynchronizedTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
+import com.sun.source.tree.Tree;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,7 +39,7 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
     private static List<String> methodAcquiresLocks = null;
     private static List<String> methodAcquiredLocks = null;
     private static List<LockGroup> listOfLockGroups = null;
-    // private static List<LockExpression> methodAcquiresLocksList = null;
+    private static List<LockExpression> methodAcquiresLocksList = null;
 
     public DeadlockVisitor(BaseTypeChecker checker) {
         super(checker);
@@ -46,27 +47,27 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
     @Override
     public Void visitVariable(VariableTree node, Void p) {
-        System.out.println("var" + node);
-        TypeMirror tm = TreeUtils.typeOf(node);
+        // System.out.println("var" + node);
         String lockToBeAdded = node.getName().toString();
+
         try {
             TreePath currentPath = getCurrentPath();
+
             List<Receiver> params =
                     FlowExpressions.getParametersOfEnclosingMethod(atypeFactory, currentPath);
             TypeMirror enclosingType = TreeUtils.typeOf(TreeUtils.enclosingClass(currentPath));
+            // System.out.println(enclosingType);s
             Receiver pseudoReceiver =
                     FlowExpressions.internalReprOfPseudoReceiver(currentPath, enclosingType);
             FlowExpressionContext exprContext =
                     new FlowExpressionContext(pseudoReceiver, params, atypeFactory.getContext());
             Receiver lockExpression =
                     FlowExpressionParseUtil.parse(lockToBeAdded, exprContext, currentPath, true);
-            System.out.println("SEE THIS:          !!        " + lockExpression);
+            // System.out.println("LockCheckerMethod: " + lockExpression);
         } catch (FlowExpressionParseException e) {
 
         }
 
-        // List<LockGroup> prevGroups = atypeFactory.getLockGroups();
-        // try {
         List<? extends AnnotationTree> annotationTreeList = node.getModifiers().getAnnotations();
         if (node.getModifiers().getAnnotations().isEmpty()) {
             listOfLockGroups = atypeFactory.defineAcquisitionOrder(lockToBeAdded);
@@ -85,9 +86,6 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
             }
         }
         return super.visitVariable(node, p);
-        // } finally {
-        //     atypeFactory.setLockGroups(prevGroups);
-        // }
     }
 
     @Override
@@ -99,14 +97,9 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
         List<String> prevLocks = atypeFactory.getHeldLock();
         List<String> locks = prevLocks;
-        // System.out.println("Previously held locks " + prevLocks);
 
         List<String> methodLocks = methodAcquires(method);
-        // System.out.println("Method will acquire " + methodLocks);
         methodAcquiresLocks = methodLocks;
-
-        // List<LockGroup> prevGroups = atypeFactory.getLockGroups();
-        System.out.println("IN METHOD");
 
         try {
             if (method.getModifiers().contains(Modifier.SYNCHRONIZED)) {
@@ -127,11 +120,18 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                 // System.out.println("Synchronized method. Currently held locks " + locks);
             }
 
+            
+            AnnotationMirror acquires = atypeFactory.getDeclAnnotation(method, Acquires.class);
+            
+            // if(acquires!=null) {
+            //     List<LockExpression> expressions = getLockExpressions(acquires, node);
+            //     methodAcquiresLocksList = expressions;
+            //     System.out.println("Method will acquire " + expressions);
+            // }
+
             return super.visitMethod(node, p);
         } finally {
             atypeFactory.setHeldLocks(prevLocks);
-            // atypeFactory.setLockGroups(prevGroups);
-            System.out.println("OUT OF METHOD");
             // check if lock is not within method
             if (!methodAcquiresLocks.isEmpty()) {
                 if (methodAcquiredLocks != null) {
@@ -149,8 +149,8 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
     public Void visitMethodInvocation(MethodInvocationTree node, Void p) {
 
         ExecutableElement method = TreeUtils.elementFromUse(node);
-        System.out.println("METHOD INVOCATION:  " + node);
-        System.out.println("returns:  " + method.getReturnType());
+        // System.out.println("METHOD INVOCATION:  " + node);
+        // System.out.println("returns:  " + method.getReturnType());
 
         List<String> prevLocks = atypeFactory.getHeldLock();
         List<String> locks = prevLocks;
@@ -218,6 +218,7 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
 
             String appendLock = TreeUtils.skipParens(node.getExpression()).toString();
             // check if lock is in @Acquires
+
             if (!checkIfAcquiresContainsLock(appendLock)) {
                 checker.report(
                         Result.failure(
@@ -267,7 +268,6 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
                     AnnotationUtils.getElementValueArray(acquires, "value", String.class, false);
             locks.addAll(acquiresValue);
         }
-
         return locks;
     }
 
@@ -334,4 +334,70 @@ public class DeadlockVisitor extends BaseTypeVisitor<DeadlockAnnotatedTypeFactor
         }
         return false;
     }
+
+
+    // Any of the following methods are currently not being used
+    private void checkLock(Tree tree, AnnotationMirror acquiresAnno) {
+        if (acquiresAnno == null) {
+            // ErrorReporter.errorAbort("DeadlockLockVisitor.checkLock: Anno cannot be null");
+        }
+
+        List<LockExpression> expressions = getLockExpressions(acquiresAnno, tree);
+        if (expressions.isEmpty()) {
+            return;
+        }
+    }
+
+    private List<LockExpression> getLockExpressions(AnnotationMirror acquiresAnno, Tree tree) {
+
+        List<String> expressions =
+                AnnotationUtils.getElementValueArray(acquiresAnno, "value", String.class, true);
+
+        if (expressions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        TreePath currentPath = getCurrentPath();
+        List<Receiver> params =
+                FlowExpressions.getParametersOfEnclosingMethod(atypeFactory, currentPath);
+
+        TypeMirror enclosingType = TreeUtils.typeOf(TreeUtils.enclosingClass(currentPath));
+        Receiver pseudoReceiver =
+                FlowExpressions.internalReprOfPseudoReceiver(currentPath, enclosingType);
+        FlowExpressionContext exprContext =
+                new FlowExpressionContext(pseudoReceiver, params, atypeFactory.getContext());
+
+        List<LockExpression> lockExpressions = new ArrayList<>();
+        for (String expression : expressions) {
+            lockExpressions.add(parseExpressionString(expression, exprContext, currentPath));
+            System.out.println(parseExpressionString(expression, exprContext, currentPath).lockExpression + "this is added");
+        }
+        return lockExpressions;
+    }
+
+    private LockExpression parseExpressionString(
+            String expression,
+            FlowExpressionContext flowExprContext,
+            TreePath path) {
+
+        LockExpression lockExpression = new LockExpression(expression);
+
+        try {
+                lockExpression.lockExpression =
+                        FlowExpressionParseUtil.parse(expression, flowExprContext, path, true);
+                return lockExpression;
+        } catch (FlowExpressionParseException ex) {
+            return lockExpression;
+        }
+    }
+
+    private static class LockExpression {
+        final String expressionString;
+        Receiver lockExpression = null;
+
+        LockExpression(String expression) {
+            this.expressionString = expression;
+        }
+    }
+
 }
